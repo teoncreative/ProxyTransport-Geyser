@@ -1,0 +1,17 @@
+# ProxyTransport (Geyser)
+# Lets a WaterdogPE proxy reach Geyser over TCP/QUIC instead of RakNet.
+
+# Address the transports bind to.
+address: 0.0.0.0
+
+tcp:
+  enabled: true
+  port: 19132
+
+# Requires the native QUIC library (bundled for linux-x86_64).
+quic:
+  enabled: false
+  port: 19133
+
+# Don't start Geyser's RakNet listener (recommended when only the proxy connects).
+disable-raknet: true
