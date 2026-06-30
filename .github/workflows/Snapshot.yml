@@ -1,8 +1,8 @@
-name: ProxyTransport-Geyser Release
+name: Snapshot
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 permissions:
   contents: write
 jobs:
@@ -18,11 +18,12 @@ jobs:
           distribution: temurin
       - name: Build ProxyTransport-Geyser
         run: ./gradlew build
-      - name: Create Release
+      - name: Prerelease
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          title: "ProxyTransport-Geyser ${{ github.ref_name }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
           files: |
             build/libs/ProxyTransport-Geyser.jar
