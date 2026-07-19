@@ -5,44 +5,30 @@
 
 package org.geysermc.extension.proxytransport.transport;
 
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.epoll.EpollServerSocketChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.concurrent.DefaultThreadFactory;
+import java.net.InetSocketAddress;
+import java.util.concurrent.CompletableFuture;
+import org.cloudburstmc.protocol.bedrock.BedrockServerSession;
 import org.geysermc.extension.proxytransport.ProxyTransportConfig;
-import org.geysermc.extension.proxytransport.network.TransportChannelInitializer;
+import org.geysermc.extension.proxytransport.network.ProxyTransportBedrockPeer;
+import org.geysermc.extension.proxytransport.util.GeyserTransportLogger;
 import org.geysermc.geyser.api.extension.Extension;
 import org.geysermc.geyser.network.netty.GeyserServer;
 import org.geysermc.geyser.network.netty.transport.GeyserBedrockTransport;
-
-import java.net.InetSocketAddress;
-import java.util.concurrent.CompletableFuture;
+import org.nethergames.proxytransport.common.network.TransportChannelInitializer;
+import org.nethergames.proxytransport.common.transport.TcpProxyTransportServer;
 
 /**
- * A ProxyTransport listener over plain TCP. The proxy connects, length-delimited Bedrock batches flow, and each
- * accepted socket becomes a Geyser session.
+ * A ProxyTransport listener over plain TCP. Each accepted socket becomes a Geyser session.
  */
 public final class TcpProxyTransport implements GeyserBedrockTransport {
     public static final String ID = "proxy_transport_tcp";
 
-    private final Extension extension;
     private final ProxyTransportConfig config;
-
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workerGroup;
-    private Channel channel;
+    private final TcpProxyTransportServer server;
 
     public TcpProxyTransport(Extension extension, ProxyTransportConfig config) {
-        this.extension = extension;
         this.config = config;
+        this.server = new TcpProxyTransportServer(new GeyserTransportLogger(extension));
     }
 
     @Override
@@ -51,56 +37,20 @@ public final class TcpProxyTransport implements GeyserBedrockTransport {
     }
 
     @Override
-    public CompletableFuture<Void> bind(GeyserServer server, InetSocketAddress defaultBindAddress) {
-        boolean epoll = Epoll.isAvailable();
-        this.bossGroup = epoll
-            ? new EpollEventLoopGroup(1, new DefaultThreadFactory("ProxyTransport-TCP-Boss"))
-            : new NioEventLoopGroup(1, new DefaultThreadFactory("ProxyTransport-TCP-Boss"));
-        this.workerGroup = epoll
-            ? new EpollEventLoopGroup(new DefaultThreadFactory("ProxyTransport-TCP-Worker"))
-            : new NioEventLoopGroup(new DefaultThreadFactory("ProxyTransport-TCP-Worker"));
-
-        Class<? extends ServerChannel> channelClass = epoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
-        InetSocketAddress bindAddress = new InetSocketAddress(config.address(), config.tcpPort());
-
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        new ServerBootstrap()
-            .group(bossGroup, workerGroup)
-            .channel(channelClass)
-            .childOption(ChannelOption.TCP_NODELAY, true)
-            .childHandler(new TransportChannelInitializer(server.getSessionInitializer()))
-            .bind(bindAddress)
-            .addListener((ChannelFuture future) -> {
-                if (future.isSuccess()) {
-                    this.channel = future.channel();
-                    extension.logger().info("ProxyTransport TCP listening on " + bindAddress);
-                } else {
-                    extension.logger().error("TCP failed to bind on " + bindAddress + "; disabling it.", future.cause());
-                    shutdownGroups();
-                }
-                // Complete normally regardless: a bind failure must not abort startup.
-                result.complete(null);
-            });
-        return result;
+    public CompletableFuture<Void> bind(GeyserServer geyserServer, InetSocketAddress defaultBindAddress) {
+        InetSocketAddress bindAddress = new InetSocketAddress(this.config.address(), this.config.tcpPort());
+        return this.server.bind(bindAddress, new TransportChannelInitializer(
+                channel -> new ProxyTransportBedrockPeer(channel, (peer, subClientId) -> {
+                    BedrockServerSession session = new BedrockServerSession(peer, subClientId);
+                    geyserServer.getSessionInitializer().initializeSession(session);
+                    return session;
+                })))
+            // A bind failure must not abort Geyser's startup.
+            .exceptionally(t -> null);
     }
 
     @Override
     public void shutdown() {
-        if (channel != null) {
-            channel.close().syncUninterruptibly();
-            channel = null;
-        }
-        shutdownGroups();
-    }
-
-    private void shutdownGroups() {
-        if (workerGroup != null) {
-            workerGroup.shutdownGracefully();
-            workerGroup = null;
-        }
-        if (bossGroup != null) {
-            bossGroup.shutdownGracefully();
-            bossGroup = null;
-        }
+        this.server.shutdown();
     }
 }

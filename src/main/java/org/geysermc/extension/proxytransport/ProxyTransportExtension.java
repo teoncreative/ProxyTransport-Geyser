@@ -8,7 +8,8 @@ package org.geysermc.extension.proxytransport;
 import org.geysermc.event.subscribe.Subscribe;
 import org.geysermc.extension.proxytransport.transport.QuicProxyTransport;
 import org.geysermc.extension.proxytransport.transport.TcpProxyTransport;
-import org.geysermc.extension.proxytransport.util.QuicLibraryInstaller;
+import org.geysermc.extension.proxytransport.util.GeyserTransportLogger;
+import org.nethergames.proxytransport.common.util.QuicLibraryInstaller;
 import org.geysermc.geyser.api.extension.Extension;
 import org.geysermc.geyser.network.netty.transport.GeyserDefineBedrockTransportsEvent;
 import org.geysermc.geyser.network.netty.transport.RakNetGeyserTransport;
@@ -19,6 +20,12 @@ import java.io.IOException;
  * Registers the ProxyTransport TCP/QUIC transports with Geyser via {@link GeyserDefineBedrockTransportsEvent}.
  */
 public class ProxyTransportExtension implements Extension {
+
+    private static final String QUIC_PROBE_CLASS = "io.netty.handler.codec.quic.QuicServerCodecBuilder";
+    private static final String[] QUIC_JARS = {
+        "/quic-libs/netty-codec-classes-quic.jar",
+        "/quic-libs/netty-codec-native-quic.jar",
+    };
 
     @Subscribe
     public void onDefineTransports(GeyserDefineBedrockTransportsEvent event) {
@@ -40,7 +47,7 @@ public class ProxyTransportExtension implements Extension {
         if (config.quicEnabled()) {
             // QUIC's native must be loadable before the transport is registered; skip QUIC if it can't be.
             try {
-                QuicLibraryInstaller.install(this.dataFolder());
+                QuicLibraryInstaller.install(QUIC_PROBE_CLASS, QUIC_JARS, this.dataFolder().resolve("quic-libs"));
                 event.register(new QuicProxyTransport(this, config));
                 registered = true;
             } catch (QuicLibraryInstaller.InstallException e) {

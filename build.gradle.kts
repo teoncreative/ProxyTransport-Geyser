@@ -1,7 +1,10 @@
 plugins {
     java
+    `maven-publish`
     id("com.gradleup.shadow") version "9.4.1"
 }
+
+group = "org.nethergames.proxytransport"
 
 val id = project.property("id") as String
 // Note: read "extensionName", not "name" - Gradle's built-in project `name` property would shadow it.
@@ -27,6 +30,8 @@ repositories {
 val quicLibs by configurations.creating
 
 dependencies {
+    implementation(project(":common"))
+
     // Provided by Geyser (which transitively exposes Netty + the Bedrock protocol libraries).
     compileOnly("org.geysermc.geyser:core:$geyserVersion")
     compileOnly("org.geysermc.geyser:api:$geyserVersion")

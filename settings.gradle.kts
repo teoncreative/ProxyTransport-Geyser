@@ -16,3 +16,8 @@ rootProject.name = "proxytransport-geyser"
 //     cd ../Geyser && ./gradlew :core:publishToMavenLocal :api:publishToMavenLocal :common:publishToMavenLocal
 //
 // (run with a Java 21+ JDK). The dependencies in build.gradle.kts then resolve from mavenLocal().
+
+// Shared ProxyTransport wire implementation, vendored as a git submodule (see .gitmodules).
+// Run `git submodule update --init` after cloning.
+include(":common")
+project(":common").projectDir = file("common")
