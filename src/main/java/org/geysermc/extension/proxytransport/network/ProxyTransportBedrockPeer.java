@@ -6,6 +6,8 @@
 package org.geysermc.extension.proxytransport.network;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.socket.ChannelInputShutdownEvent;
 import org.cloudburstmc.protocol.bedrock.BedrockSessionFactory;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionStrategy;
@@ -45,6 +47,15 @@ public class ProxyTransportBedrockPeer extends GeyserBedrockPeer implements Prox
             return;
         }
         super.onBedrockPacket(wrapper);
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object event) throws Exception {
+        if (event instanceof ChannelInputShutdownEvent) {
+            close("disconnect.closed");
+            return;
+        }
+        super.userEventTriggered(ctx, event);
     }
 
     @Override
